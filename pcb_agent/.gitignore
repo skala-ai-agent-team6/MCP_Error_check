@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+.DS_Store
+results/test_after/
+results/mine/
+results/채점표.md
