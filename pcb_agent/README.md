@@ -14,3 +14,25 @@ uv venv --python 3.11 && uv pip install ultralytics
 .venv/bin/python compare.py   # results/test_before 10장 → results/test_after + 채점표.md
 ```
 정답 비교용 라벨 경로는 `compare.py`의 `LABELS`.
+
+## MCP 도구 + LangGraph
+- `mcp_server.py`: 진단 모델을 MCP 도구로 노출 (stdio)
+  - `analyze_pcb_image(image_path, conf=0.25)`: 결함 목록·개수·박스 사진 경로
+  - `list_sample_images()`: 시험용 사진 경로
+- `graph.py`: LangGraph `inspect(MCP 호출) → 불량/정상 갈림길 → 보고`
+```bash
+uv pip install ultralytics "mcp<2" langgraph langchain-mcp-adapters
+.venv/bin/python graph.py                 # 샘플 3장
+.venv/bin/python graph.py 사진경로.jpg     # 원하는 사진
+```
+- Claude Code에 등록: `claude mcp add pcb-detector --scope user -- $PWD/.venv/bin/python $PWD/mcp_server.py`
+- `mcp<2` 고정: langchain-mcp-adapters 0.3.1이 mcp 2.x와 아직 안 맞음
+
+## GPT 에이전트 버전 (`gpt_agent.py`)
+GPT(gpt-4o-mini)가 MCP 도구 설명을 보고 **스스로 골라서** 호출 → 결과 해석해 보고.
+LangGraph: `agent(GPT) ⇄ tools(MCP)` 반복, 도구 안 부르면 끝.
+```bash
+uv pip install langchain-openai python-dotenv
+.venv/bin/python gpt_agent.py "results/test_before/l_light_05_missing_hole_01_4_600.jpg 진단해줘"
+```
+키: 저장소 바깥 상위 폴더 `.env`의 `OPENAI_API_KEY` (커밋 금지)

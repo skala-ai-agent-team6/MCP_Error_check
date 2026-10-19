@@ -3,4 +3,6 @@ __pycache__/
 .DS_Store
 results/test_after/
 results/mine/
+results/mcp_after/
 results/채점표.md
+.env
