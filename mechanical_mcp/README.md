@@ -7,10 +7,14 @@
 |---|---|---|
 | list_photos | 없음 | photo_ids |
 | detect_surface_defects | photo_id, conf(기본 0.25) | is_defective, max_confidence, defect_counts, defects(type·confidence·box_xyxy), annotated_image, model |
+| detect_dents | photo_id, conf(기본 0.25) | 위와 같은 모양. 결함 종류는 dent(찌그러짐), breakage(파손) |
 
 - 결함 6종: crazing, inclusion, patches, pitted_surface, rolled-in_scale, scratches
 - 없는 photo_id는 ToolError로 돌려주고, 있는 photo_id 목록을 메시지에 넣는다.
-- 두 도구 모두 readOnlyHint.
+- photo_id 자리에 파일 경로를 넣어도 된다 (같은 PC의 에이전트 워커가 쓴다).
+- 모든 도구 readOnlyHint.
+- detect_dents는 자동차 외판 모델(`vineetsarpal/yolov11n-car-damage`)이다. 원래 이름(front-bumper-dent 등)을 그대로 내보내면
+  GPT가 "자동차 얘기라 무시"해서 서버에서 dent / breakage로 바꿔 내보낸다. 교체는 환경변수 DENT_REPO, DENT_FILE.
 
 ## 실행
 ```bash

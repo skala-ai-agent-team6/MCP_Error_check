@@ -16,7 +16,7 @@ BASE = Path(__file__).parent
 MODEL_REPO = os.getenv("MODEL_REPO", "hazemaaa/steel-defect-yolo11n")
 MODEL_FILE = os.getenv("MODEL_FILE", "production/best.pt")
 # 모델을 바꿀 땐 이 두 값만 바꾼다
-PHOTO_DIR = Path(os.getenv("PHOTO_DIR", BASE / "photos"))
+PHOTO_DIR = Path(os.getenv("PHOTO_DIR", BASE / "photos"))  # worker는 파일 경로를 직접 넘긴다
 OUT_DIR = Path(os.getenv("OUT_DIR", BASE / "results"))
 # 지금은 photo_id = PHOTO_DIR 안의 파일 이름(확장자 제외). 저장소(MinIO)가 생기면 여기만 바꾼다
 MIN_CONF = 0.25
@@ -24,10 +24,24 @@ MIN_CONF = 0.25
 MODEL = YOLO(hf_hub_download(MODEL_REPO, MODEL_FILE))
 # 서버 켤 때 한 번만 로드
 
+DENT_REPO = os.getenv("DENT_REPO", "vineetsarpal/yolov11n-car-damage")
+DENT_FILE = os.getenv("DENT_FILE", "best.pt")
+DENT_MODEL = YOLO(hf_hub_download(DENT_REPO, DENT_FILE))
+# 찌그러짐 모델. 자동차 외판으로 학습돼서 원래 이름이 front-bumper-dent, Headlight-damage 같은 자동차 부위다.
+# 그대로 내보내면 GPT가 "자동차 얘기라 무시"해 버려서, 밖으로는 일반 결함명만 내보낸다 (모델 교체 전 임시).
+
+
+def plain_name(name: str) -> str:
+    """자동차 부위 이름 → 일반 결함명. bonnet-dent → dent, Headlight-damage → breakage"""
+    return "dent" if name.lower().endswith("dent") else "breakage"
+
 mcp = FastMCP("mechanical-mcp")
 
 
 def find_photo(photo_id: str) -> Path:
+    if Path(photo_id).is_file():
+        return Path(photo_id)
+    # 같은 PC에서 부를 땐 파일 경로도 받는다 (agent-server worker)
     for ext in (".jpg", ".jpeg", ".png"):
         path = PHOTO_DIR / f"{photo_id}{ext}"
         if path.is_file():
@@ -68,7 +82,7 @@ def detect_surface_defects(photo_id: str, conf: float = MIN_CONF) -> dict:
         counts[d["type"]] = counts.get(d["type"], 0) + 1
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    annotated = OUT_DIR / f"{photo_id}_boxed.jpg"
+    annotated = OUT_DIR / f"{Path(photo_id).stem}_boxed.jpg"
     Image.fromarray(r.plot()[..., ::-1]).save(annotated)
     # 박스 그린 사진 저장 (리포트에는 경로만 넣는다)
 
@@ -80,6 +94,40 @@ def detect_surface_defects(photo_id: str, conf: float = MIN_CONF) -> dict:
         "defects": defects,
         "annotated_image": str(annotated),
         "model": f"{MODEL_REPO}/{MODEL_FILE}",
+    }
+
+
+@mcp.tool(annotations={"readOnlyHint": True})
+def detect_dents(photo_id: str, conf: float = MIN_CONF) -> dict:
+    """부품 사진에서 찌그러짐(dent)과 깨짐·파손(breakage)을 찾는다.
+
+    photo_id: 사진 id 또는 파일 경로. conf: 이 확신도 미만은 버림(0~1).
+    """
+    path = find_photo(photo_id)
+    with redirect_stdout(sys.stderr):
+        r = DENT_MODEL.predict(str(path), conf=conf, iou=0.6, verbose=False)[0]
+    r.names = {i: plain_name(n) for i, n in r.names.items()}  # 박스 그림에도 일반 이름만
+
+    defects = [
+        {"type": r.names[int(c)], "confidence": round(float(s), 3), "box_xyxy": [round(v) for v in b.tolist()]}
+        for c, s, b in zip(r.boxes.cls, r.boxes.conf, r.boxes.xyxy)
+    ]
+    counts = {}
+    for d in defects:
+        counts[d["type"]] = counts.get(d["type"], 0) + 1
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    annotated = OUT_DIR / f"{Path(photo_id).stem}_dent_boxed.jpg"
+    Image.fromarray(r.plot()[..., ::-1]).save(annotated)
+
+    return {
+        "photo_id": photo_id,
+        "is_defective": bool(defects),
+        "max_confidence": max((d["confidence"] for d in defects), default=0.0),
+        "defect_counts": counts,
+        "defects": defects,
+        "annotated_image": str(annotated),
+        "model": "dent-detector (YOLO11n)",  # 원 모델 이름(자동차)은 README에만 적는다
     }
 
 
