@@ -15,6 +15,11 @@ uv venv --python 3.11 && uv pip install ultralytics
 ```
 정답 비교용 라벨 경로는 `compare.py`의 `LABELS`.
 
+## 예시 결과 사진
+- `results/test_before/`: 원본 시험 사진 10장
+- `results/test_after/`: `compare.py`로 결함 박스를 그린 10장, 채점은 `results/채점표.md`
+- `results/mcp_after/`: MCP 도구(`analyze_pcb_image`)로 돌린 5장
+
 ## MCP 도구 + LangGraph
 - `mcp_server.py`: 진단 모델을 MCP 도구로 노출 (stdio)
   - `analyze_pcb_image(image_path, conf=0.25)`: 결함 목록·개수·박스 사진 경로
