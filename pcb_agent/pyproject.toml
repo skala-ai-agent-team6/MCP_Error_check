@@ -1,0 +1,8 @@
+[project]
+name = "pcb-mcp"
+version = "0.1.0"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "mcp>=1.20,<2",  # 팀원 원본 서버가 mcp 1.x 문법(mcp.server.fastmcp)
+    "ultralytics>=8.4",
+]
